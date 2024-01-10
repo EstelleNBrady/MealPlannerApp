@@ -1,17 +1,58 @@
+{% load static %}
+
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <title>Suggested Recipes</title>
+    <title>Create Recipes with ChatGPT</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .recipe-card {
+            margin-bottom: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+
+        /* Custom CSS styles for the title */
+        .title {
+            font-size: 50px;
+            text-align: center;
+            margin-top: 50px;
+            margin-bottom: 30px;
+            color: #333;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+            background-color: #FCE3D8;
+            padding: 40px;
+        }
+    </style>
 </head>
 <body>
-    <h1>Suggested Recipes</h1>
-    <ul>
-        {% for detail in recipe_details %}
-            <li>{{ detail.recipe.name }} - Matching Ingredients: {{ detail.matching_ingredients }}</li>
+<div class="container mt-5">
+    <form method="post">
+        {% csrf_token %}
+    </form>
+
+    <div id="recipesList" class="mt-4">
+        <h2 class="title">Recipes Based On Your Pantry</h2> <!-- Updated class to "title" with custom styles -->
+
+        {% for recipe in recipes %}
+            <div class="recipe-card">
+                <h5>{{ recipe.title }}</h5>
+                <h6>Ingredients:</h6>
+                <p>{{ recipe.ingredients }}</p>
+                <h6>Instructions:</h6>
+                <p>{{ recipe.instructions }}</p>
+            </div>
         {% empty %}
-            <li>No matching recipes found.</li>
+            <p>No recipes found. Try generating again.</p>
         {% endfor %}
-    </ul>
+    </div>
+</div>
+
+<!-- Bootstrap JS -->
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.16.0/umd/popper.min.js"></script>
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
 </body>
 </html>

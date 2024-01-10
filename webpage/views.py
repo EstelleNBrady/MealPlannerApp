@@ -1,13 +1,15 @@
 # views.py
+import os
+
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import render, redirect
 from django.contrib.auth import authenticate, login
 from django.contrib import messages
 from django.http import HttpResponse, HttpResponseRedirect
-from collections import defaultdict
-from .models import PantryItem, Ingredients, RecipeIngredients, Recipes
-from .forms import LoginForm, RecipeForm, RecipeIngredientForm
-from django.forms import formset_factory
+from openai import OpenAI
+
+from .models import PantryItem
+from .forms import LoginForm, IngredientListForm
 from django.contrib.auth.forms import AuthenticationForm
 from django.urls import reverse
 from django.shortcuts import render, redirect
@@ -16,6 +18,10 @@ from django.views.decorators.http import require_POST
 from .utils import generate_image
 from django.shortcuts import get_object_or_404
 from .nutrition_lookup import get_nutritional_data
+from .forms import UserProfileForm
+from .models import UserProfile
+from .models import RecipesMade
+from django.core.cache import cache
 from .forms import *
 from .models import *
 from django.contrib.auth import get_user_model, logout
@@ -69,64 +75,50 @@ def home(request):
 
 
 def create_recipe(request):
-    # Get the user's pantry items (ingredient IDs)
-    user_pantry_item_ids = PantryItem.objects.filter(user=request.user).values_list('item_name', flat=True)
+    recipes = []
 
-    # Get all recipes and their ingredients
-    all_recipes = Recipes.objects.all()
-    recipe_ingredient_pairs = RecipeIngredients.objects.filter(recipe_id__in=all_recipes).values_list('recipe_id',
-                                                                                                      'ingredient_id')
+    # Add the code to automatically generate recipes here
+    # Initialize the OpenAI client with your API key
+    client = OpenAI(api_key="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")
 
-    # Count matching ingredients for each recipe
-    recipe_match_counts = defaultdict(int)
-    for recipe_id, ingredient_id in recipe_ingredient_pairs:
-        if ingredient_id in user_pantry_item_ids:
-            recipe_match_counts[recipe_id] += 1
+    # Fetch pantry items from the database
+    pantry_items = PantryItem.objects.all()
+    pantry_items_list = [item.name for item in pantry_items]
 
-    # Sort recipes by the number of matching ingredients
-    sorted_recipes = sorted(recipe_match_counts.items(), key=lambda x: x[1], reverse=True)[:10]
+    # Send a prompt to ChatGPT
+    prompt = f"Generate a list of recipes using the following pantry items: {', '.join(pantry_items_list)}. Start each recipe with Recipe Title: and then list the Ingredients: followed by Instructions: (so basically by section with a colon after it and it starts with an uppercase letter)."
 
-    # Fetch the recipe details for the top matching recipes
-    top_recipes = [Recipes.objects.get(id=recipe_id) for recipe_id, _ in sorted_recipes]
+    response = client.chat.completions.create(
+        messages=[
+            {"role": "system", "content": prompt},
+            {"role": "user", "content": "Generate a list of recipes"},
+        ],
+        model="gpt-4",
+    )
 
-    # Prepare final data to pass to the template
-    recipe_details = [{'recipe': recipe, 'matching_ingredients': recipe_match_counts[recipe.id]} for recipe in
-                      top_recipes]
+    # Retrieve the generated recipes from the API response
+    recipes_text = response.choices[0].message.content
 
-    return render(request, 'create_recipe.html', {'recipe_details': recipe_details})
+    # Process 'recipes_text' to extract individual recipes
+    recipe_texts = recipes_text.split("Recipe Title:")[1:]  # Split and ignore the first empty element
+    for text in recipe_texts:
+        title_end = text.find("Ingredients:")
+        ingredients_end = text.find("Instructions:")
 
+        title = text[:title_end].strip()
+        ingredients = text[title_end + len("Ingredients:"):ingredients_end].strip()
+        instructions = text[ingredients_end + len("Instructions:"):].strip()
 
-def add_recipe(request):
-    if request.method == 'POST':
-        recipe_form = RecipeForm(request.POST)
-        if recipe_form.is_valid():
-            recipe = recipe_form.save(commit=False)
-            recipe.user_id = request.user  # assuming you have a user model
-            recipe.save()
+        recipe = RecipesMade(
+            title=title,
+            ingredients=ingredients,
+            instructions=instructions
+        )
 
-            # Process dynamic ingredient fields
-            ingredient_names = request.POST.getlist('ingredient_name[]')
-            units = request.POST.getlist('unit[]')
-            quantities = request.POST.getlist('quantity[]')
+        recipes.append({"title": title, "ingredients": ingredients, "instructions": instructions})
+        recipe.save()
 
-            for name, unit, quantity in zip(ingredient_names, units, quantities):
-                RecipeIngredients.objects.create(
-                    recipe_id=recipe,
-                    ingredient_id=name,
-                    unit_id=unit,
-                    qty_id=quantity
-                )
-
-            return redirect('some_view')  # Redirect to a desired page
-
-    else:
-        recipe_form = RecipeForm()
-
-    ingredients = Ingredients.objects.all()
-    return render(request, 'add_recipe.html', {
-        'recipe_form': recipe_form,
-        'ingredients': ingredients
-    })
+    return render(request, 'create_recipe.html', {'recipes': recipes})
 
 
 def pantry(request):
@@ -136,10 +128,6 @@ def pantry(request):
 
 def forgot_password(request):
     return render(request, 'forgot_password.html')
-
-
-def help(request):
-    return render(request, 'help.html')
 
 
 def my_recipes(request):
@@ -156,7 +144,6 @@ def profile(request):
         full_name = None
 
     return render(request, 'profile.html', {'full_name': full_name})
-
 
 
 # Adds item to pantry
@@ -248,7 +235,6 @@ def export_cart(request):
     return response
 
 
-@login_required
 def profile_edit(request):
     try:
         user_profile = UserProfile.objects.get(user=request.user)
@@ -259,7 +245,10 @@ def profile_edit(request):
         form = UserProfileForm(request.POST, request.FILES, instance=user_profile)
         if form.is_valid():
             form.save()
-            return redirect('profile_edit')
+            messages.success(request, 'Profile updated successfully.')
+            return redirect('profile')  # Redirect to the profile page
+        else:
+            messages.error(request, 'Error updating profile. Please check the form.')
     else:
         form = UserProfileForm(instance=user_profile)
 

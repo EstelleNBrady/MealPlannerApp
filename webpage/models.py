@@ -1,7 +1,6 @@
-#models.py
+# models.py
 from django.contrib.auth.models import User
 from django.db import models
-from capstone import settings
 
 
 class PantryItem(models.Model):
@@ -32,60 +31,17 @@ class Users(models.Model):
     user_pass = models.CharField(max_length=50)
 
 
-class Recipes(models.Model):
-    recipe_id = models.IntegerField(primary_key=True)
-    recipe_name = models.CharField(max_length=200)
-    recipe_desc = models.CharField(max_length=10000)
-    recipe_ingredients = models.CharField(max_length=500)  # ignore this
-    recipe_preptime = models.IntegerField()  # Temp value, in minutes
-    recipe_cooktime = models.IntegerField()  # Temp value, in minutes
-    recipe_peanut = models.BooleanField(default=False)  # Flag for peanut allergy
-    recipe_Dairy = models.BooleanField(default=False)  # Flag for dairy allergy
-    recipe_vegetarian = models.BooleanField(default=False)  # Flag for vegetarian preference
-    recipe_vegan = models.BooleanField(default=False)  # Flag for vegan preference
-    user_id = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
-
-
-class Cart(models.Model):
-    ingredients = models.ManyToManyField("CartItem")
-
-
-class CartItem(models.Model):
-    item_name = models.CharField(max_length=100)
-    quantity = models.IntegerField()
-
-
-class Ingredients(models.Model):
-    food = models.CharField(max_length=100)
-    measure = models.CharField(max_length=100)
-    grams = models.IntegerField()
-    calories = models.IntegerField()
-    fat = models.CharField(max_length=10)
-    sat_fat = models.CharField(max_length=10)
-    fiber = models.CharField(max_length=10)
-    carbs = models.CharField(max_length=10)
-    category = models.CharField(max_length=100)
+class RecipesMade(models.Model):
+    title = models.TextField()  # Field definitions
+    ingredients = models.TextField()
+    instructions = models.TextField()
 
     def __str__(self):
-        return self.food
+        return self.title
 
-
-class MeasurementUnits(models.Model):
-    unit_id = models.IntegerField(primary_key=True)
-    measurement_desc = models.CharField(max_length=500)
-
-
-class MeasurementQty(models.Model):
-    qty_id = models.IntegerField(primary_key=True)
-    qty_desc = models.CharField(max_length=200)
-
-
-class RecipeIngredients(models.Model):
-    recipe_ingredient_id = models.IntegerField(primary_key=True)
-    recipe_id = models.ForeignKey("Recipes", on_delete=models.CASCADE)
-    unit_id = models.ForeignKey("MeasurementUnits", on_delete=models.CASCADE)
-    qty_id = models.ForeignKey("MeasurementQty", on_delete=models.CASCADE)
-    ingredient_id = models.ForeignKey("Ingredients", on_delete=models.CASCADE)
+    # Add the Meta class inside the RecipesMade model
+    class Meta:
+        db_table = 'webpage_recipesmade'  # Explicitly set the table name
 
 
 class UserProfile(models.Model):
@@ -96,3 +52,12 @@ class UserProfile(models.Model):
     mobile = models.CharField(max_length=20)
     address = models.TextField()
     profile_image = models.ImageField(upload_to='profile_images/', blank=True, null=True)
+
+
+class Cart(models.Model):
+    ingredients = models.ManyToManyField("CartItem")
+
+
+class CartItem(models.Model):
+    item_name = models.CharField(max_length=100)
+    quantity = models.IntegerField()
